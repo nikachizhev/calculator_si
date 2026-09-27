@@ -1,0 +1,1 @@
+"""Calculator Django application."""
