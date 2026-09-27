@@ -15,44 +15,43 @@
 ## Структура проекта
 
 ```text
-calculator-si/
+calculator/
 ├── manage.py                       # команды Django
 ├── requirements.txt                # зависимости Python
 ├── README.md                       # документация проекта
 ├── .gitignore                      # файлы, исключённые из Git
 ├── instance/
 │   └── calculator.db               # локальная SQLite-база (не загружается в Git)
-│
-src/
-├── config/                         # конфигурация всего Django-проекта
-│   ├── __init__.py                 # обозначает Python-пакет
-│   ├── settings.py                 # настройки проекта
-│   ├── urls.py                     # корневые маршруты
-│   └── wsgi.py                     # точка входа веб-сервера
-├── calculator/                     # приложение калькулятора
-│   ├── __init__.py                 # обозначает Python-пакет
-│   ├── apps.py                     # конфигурация Django-приложения
-│   ├── admin.py                    # управление историей в Django Admin
-│   ├── models.py                   # ORM-модель вычисления
-│   ├── views.py                    # веб-страница и JSON API
-│   ├── urls.py                     # маршруты приложения
-│   ├── migrations/                 # история схемы базы данных
-│   │   ├── __init__.py
-│   │   └── 0001_initial.py         # создание таблицы вычислений
-│   ├── services/                   # бизнес-логика
-│   │   ├── __init__.py
-│   │   └── evaluator.py            # безопасное вычисление выражений
-│   └── tests/                      # автоматические тесты
-│       ├── __init__.py
-│       ├── test_evaluator.py       # арифметика и научные функции
-│       ├── test_security.py        # безопасность парсера
-│       ├── test_models.py          # модель и Django ORM
-│       └── test_views.py           # страницы и JSON API
-├── static/
-│   ├── app.js                      # логика браузерного клиента
-│   └── style.css                   # оформление интерфейса
-└── templates/
-    └── index.html                  # страница калькулятора
+└── src/
+    ├── config/                     # конфигурация всего Django-проекта
+    │   ├── __init__.py             # обозначает Python-пакет
+    │   ├── settings.py             # настройки проекта
+    │   ├── urls.py                 # корневые маршруты
+    │   └── wsgi.py                 # точка входа веб-сервера
+    ├── calculator/                 # приложение калькулятора
+    │   ├── __init__.py             # обозначает Python-пакет
+    │   ├── apps.py                 # конфигурация Django-приложения
+    │   ├── admin.py                # управление историей в Django Admin
+    │   ├── models.py               # ORM-модель вычисления
+    │   ├── views.py                # веб-страница и JSON API
+    │   ├── urls.py                 # маршруты приложения
+    │   ├── migrations/             # история схемы базы данных
+    │   │   ├── __init__.py
+    │   │   └── 0001_initial.py     # создание таблицы вычислений
+    │   ├── services/               # бизнес-логика
+    │   │   ├── __init__.py
+    │   │   └── evaluator.py        # безопасное вычисление выражений
+    │   └── tests/                  # автоматические тесты
+    │       ├── __init__.py
+    │       ├── test_evaluator.py   # арифметика и научные функции
+    │       ├── test_security.py    # безопасность парсера
+    │       ├── test_models.py      # модель и Django ORM
+    │       └── test_views.py       # страницы и JSON API
+    ├── static/
+    │   ├── app.js                  # логика браузерного клиента
+    │   └── style.css               # оформление интерфейса
+    └── templates/
+        └── index.html              # страница калькулятора
 ```
 
 ## Запуск (на windows)
