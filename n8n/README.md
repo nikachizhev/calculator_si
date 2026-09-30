@@ -7,6 +7,7 @@
 docker run -d --name n8n --restart unless-stopped -p 5678:5678 -v n8n_data:/home/node/.n8n docker.n8n.io/n8nio/n8n
 n8n/sync.sh push        # репозиторий → n8n и публикация (все файлы или указанные)
 n8n/sync.sh pull        # n8n → репозиторий (после правок в редакторе n8n)
+n8n/test.sh             # смоук-тест: все вебхуки + ошибки расписаний за 24 ч (SINCE_HOURS=...)
 ```
 
 Django должен слушать `0.0.0.0:8000`, а `DJANGO_ALLOWED_HOSTS` — содержать `host.docker.internal`:
