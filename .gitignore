@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+.venv-wsl/
+venv/
+
+# Local database
+calculator/instance/
+*.db
+*.sqlite3
+
+# IDE / tools
+.idea/
+.vscode/
+.serena/
+
+# Secrets
+.env

@@ -1,0 +1,240 @@
+{
+  "name": "Calculator: batch calculate",
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "batch",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "3f0c6a1e-5b7d-4c2a-9e8f-1a2b3c4d5e01"
+    },
+    {
+      "id": "valid",
+      "name": "Valid input?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "valid-cond",
+              "leftValue": "={{ Array.isArray($json.body.expressions) && $json.body.expressions.length >= 1 && $json.body.expressions.length <= 50 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "split",
+      "name": "Split Out",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        440,
+        -100
+      ],
+      "parameters": {
+        "fieldToSplitOut": "body.expressions",
+        "options": {
+          "destinationFieldName": "expression"
+        }
+      }
+    },
+    {
+      "id": "calc",
+      "name": "Calculate each",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/calculate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ expression: String($json.expression), client_id: $('Webhook').first().json.body.client_id || 'n8n-batch' }) }}",
+        "options": {
+          "timeout": 5000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "shape",
+      "name": "Shape result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// One API response -> one result row. Split Out holds the original expression.\nconst expression = String($('Split Out').item.json.expression ?? '');\nconst { statusCode, body } = $json;\nif (statusCode === 200) {\n  return { json: { expression, ok: true, result: body.result, error: null } };\n}\nconst error = body?.error ?? `calculator unavailable (${statusCode ?? 'no response'})`;\nreturn { json: { expression, ok: false, result: null, error } };\n"
+      }
+    },
+    {
+      "id": "aggregate",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        -100
+      ],
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "results",
+        "options": {}
+      }
+    },
+    {
+      "id": "ok",
+      "name": "Respond results",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1320,
+        -100
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { count: $json.results.length, succeeded: $json.results.filter(r => r.ok).length, failed: $json.results.filter(r => !r.ok).length, results: $json.results } }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "bad",
+      "name": "Respond bad request",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        440,
+        120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"error\": \"body must be {\\\"expressions\\\": [...]} with 1-50 items\"}",
+        "options": {
+          "responseCode": 400
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Valid input?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid input?": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond bad request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Calculate each",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate each": {
+      "main": [
+        [
+          {
+            "node": "Shape result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape result": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Respond results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

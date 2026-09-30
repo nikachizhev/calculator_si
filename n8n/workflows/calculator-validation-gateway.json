@@ -1,0 +1,212 @@
+{
+  "name": "Calculator: validation gateway",
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "safe-calculate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "3f0c6a1e-5b7d-4c2a-9e8f-1a2b3c4d5e03"
+    },
+    {
+      "id": "validate",
+      "name": "Validate & rate limit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Runs before the request reaches Django: rejected requests cost the backend nothing.\nconst MAX_LENGTH = 100;\nconst RATE_LIMIT = 10;          // requests per client_id...\nconst WINDOW_MS = 60 * 1000;    // ...per minute\nconst ALLOWED_CHARS = /^[0-9a-zA-Z+\\-*/%^().\\s]+$/;\nconst ALLOWED_NAMES = new Set([\n  'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sqrt', 'log', 'ln', 'exp',\n  'abs', 'floor', 'ceil', 'degrees', 'radians', 'factorial', 'pi', 'e',\n]);\n\nconst body = $input.first().json.body ?? {};\nconst expression = body.expression;\nconst clientId = String(body.client_id || 'anonymous').slice(0, 100);\nconst reject = (status, error) => [{ json: { allowed: false, status, response: { expression: expression ?? null, error } } }];\n\n// Sliding-window rate limit, state kept in workflow static data.\n// Static data persists only between production executions, not manual test runs.\nconst store = $getWorkflowStaticData('global');\nconst now = Date.now();\nstore.hits ??= {};\nfor (const [id, times] of Object.entries(store.hits)) {\n  const recent = times.filter((t) => now - t < WINDOW_MS);\n  if (recent.length) store.hits[id] = recent;\n  else delete store.hits[id];\n}\nconst hits = store.hits[clientId] ?? [];\nif (hits.length >= RATE_LIMIT) return reject(429, `too many requests: max ${RATE_LIMIT} per minute`);\nstore.hits[clientId] = [...hits, now];\n\nif (typeof expression !== 'string' || !expression.trim()) return reject(400, 'expression must be a non-empty string');\nif (expression.length > MAX_LENGTH) return reject(400, `expression is longer than ${MAX_LENGTH} characters`);\nif (!ALLOWED_CHARS.test(expression)) return reject(400, 'expression contains forbidden characters');\n// Names not preceded by a digit, so the \"e\" in 1e3 is not treated as a name.\nconst unknown = (expression.match(/(?<![0-9.])[a-zA-Z]+/g) ?? []).filter((name) => !ALLOWED_NAMES.has(name));\nif (unknown.length) return reject(400, `unknown names: ${[...new Set(unknown)].join(', ')}`);\n\nreturn [{ json: { allowed: true, expression, client_id: clientId } }];\n"
+      }
+    },
+    {
+      "id": "allowed",
+      "name": "Allowed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "allowed-cond",
+              "leftValue": "={{ $json.allowed }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "calc",
+      "name": "Call Calculator API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/calculate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ expression: $json.expression, client_id: $json.client_id }) }}",
+        "options": {
+          "timeout": 5000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "normalize",
+      "name": "Normalize API response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        880,
+        -100
+      ],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            {
+              "id": "status",
+              "name": "status",
+              "type": "number",
+              "value": "={{ $json.statusCode === 200 ? 200 : ($json.body?.error ? 400 : 502) }}"
+            },
+            {
+              "id": "response",
+              "name": "response",
+              "type": "object",
+              "value": "={{ $json.statusCode === 200 ? { expression: $('Validate & rate limit').item.json.expression, result: $json.body.result, id: $json.body.id } : { expression: $('Validate & rate limit').item.json.expression, error: $json.body?.error ?? 'calculator unavailable' } }}"
+            }
+          ]
+        },
+        "includeOtherFields": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate & rate limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & rate limit": {
+      "main": [
+        [
+          {
+            "node": "Allowed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Allowed?": {
+      "main": [
+        [
+          {
+            "node": "Call Calculator API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Calculator API": {
+      "main": [
+        [
+          {
+            "node": "Normalize API response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize API response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
