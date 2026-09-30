@@ -1,0 +1,124 @@
+{
+  "name": "Calculator: stats",
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "stats",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "3f0c6a1e-5b7d-4c2a-9e8f-1a2b3c4d5e04"
+    },
+    {
+      "id": "history",
+      "name": "Get history",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "http://host.docker.internal:8000/api/history",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "client_id",
+              "value": "={{ $json.query.client_id || 'anonymous' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 5000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "stats",
+      "name": "Compute stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// History API returns the latest 100 calculations, newest first.\nconst clientId = $('Webhook').first().json.query.client_id || 'anonymous';\nconst { statusCode, body } = $input.first().json;\nif (statusCode !== 200 || !Array.isArray(body)) {\n  return [{ json: { status: 502, response: { error: 'calculator unavailable' } } }];\n}\n\nconst FUNCTION_CALL = /\\b(asin|acos|atan|sin|cos|tan|sqrt|log|ln|exp|abs|floor|ceil|degrees|radians|factorial)\\s*\\(/g;\nconst count = (counter, key) => { counter[key] = (counter[key] ?? 0) + 1; };\nconst byFrequency = (counter) => Object.fromEntries(Object.entries(counter).sort((a, b) => b[1] - a[1]));\n\nconst functions = {};\nconst operators = {};\nconst results = [];\nfor (const { expression, result } of body) {\n  for (const [, name] of expression.matchAll(FUNCTION_CALL)) count(functions, name);\n  for (const op of expression.match(/[+\\-*/%^]/g) ?? []) count(operators, op);\n  const value = Number(result);\n  if (Number.isFinite(value)) results.push(value);\n}\n\nreturn [{ json: { status: 200, response: {\n  client_id: clientId,\n  calculations: body.length,\n  first_at: body.at(-1)?.created_at ?? null,\n  last_at: body[0]?.created_at ?? null,\n  functions: byFrequency(functions),\n  operators: byFrequency(operators),\n  results: results.length\n    ? { min: Math.min(...results), max: Math.max(...results), avg: results.reduce((a, b) => a + b, 0) / results.length }\n    : null,\n  note: 'based on the latest 100 calculations',\n} } }];\n"
+      }
+    },
+    {
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.response }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get history",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get history": {
+      "main": [
+        [
+          {
+            "node": "Compute stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute stats": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

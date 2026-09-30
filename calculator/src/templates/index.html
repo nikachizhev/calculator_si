@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  {% load static %}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Калькулятор</title>
+  <link rel="stylesheet" href="{% static 'style.css' %}">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="calculator" aria-label="Калькулятор">
+      <div class="brand">CALCULATOR SERVICE</div>
+      <input id="display" class="display" inputmode="decimal" autocomplete="off"
+             aria-label="Выражение" placeholder="0" autofocus>
+      <div id="message" class="message" aria-live="polite"></div>
+      <div class="scientific-keys" aria-label="Научные функции">
+        <button data-insert="sin(" title="Синус в радианах">sin</button>
+        <button data-insert="cos(" title="Косинус в радианах">cos</button>
+        <button data-insert="tan(" title="Тангенс в радианах">tan</button>
+        <button data-insert="sqrt(" title="Квадратный корень">√</button>
+        <button data-insert="log(" title="Десятичный логарифм">log</button>
+        <button data-insert="ln(" title="Натуральный логарифм">ln</button>
+        <button data-insert="factorial(" title="Факториал">n!</button>
+        <button data-insert="pi" title="Число Пи">π</button>
+        <button data-insert="e" title="Число Эйлера">e</button>
+        <button data-insert="^" title="Возведение в степень">xʸ</button>
+      </div>
+      <details class="more-functions">
+        <summary>Ещё функции</summary>
+        <div class="more-function-keys">
+          <button data-insert="asin(">asin</button><button data-insert="acos(">acos</button>
+          <button data-insert="atan(">atan</button><button data-insert="exp(">exp</button>
+          <button data-insert="floor(">floor</button><button data-insert="ceil(">ceil</button>
+          <button data-insert="degrees(">deg</button><button data-insert="radians(">rad</button>
+          <button data-insert="abs(">abs</button>
+        </div>
+      </details>
+      <div class="keys">
+        <button class="utility" data-action="clear">C</button><button class="utility" data-action="backspace">⌫</button><button data-value="(">(</button><button data-value=")">)</button>
+        <button data-value="7">7</button><button data-value="8">8</button><button data-value="9">9</button><button class="operator" data-value="/">÷</button>
+        <button data-value="4">4</button><button data-value="5">5</button><button data-value="6">6</button><button class="operator" data-value="*">×</button>
+        <button data-value="1">1</button><button data-value="2">2</button><button data-value="3">3</button><button class="operator" data-value="-">−</button>
+        <button data-value="0">0</button><button data-value=".">.</button><button class="operator" data-value="%">%</button><button class="operator" data-value="+">+</button>
+        <button class="equals" data-action="calculate">=</button>
+      </div>
+    </section>
+    <aside class="history">
+      <div class="history-heading">
+        <h2>История</h2>
+        <div class="history-actions">
+          <button id="clear-history" class="refresh" type="button" aria-label="Очистить историю">×</button>
+        </div>
+      </div>
+      <p id="empty-history" class="empty-history">Вычислений пока нет</p>
+      <ol id="history-list"></ol>
+    </aside>
+  </main>
+  <script src="{% static 'app.js' %}"></script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+{
+  "name": "Calculator: nightly cleanup",
+  "nodes": [
+    {
+      "id": "schedule",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 3,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "clients",
+      "name": "Clients to clean",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Synthetic clients created by n8n workflows and manual tests. Never list real users here.\nconst clients = ['n8n-regression', 'n8n-test'];\nreturn clients.map((client_id) => ({ json: { client_id } }));\n"
+      }
+    },
+    {
+      "id": "delete",
+      "name": "Delete history",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "DELETE",
+        "url": "http://host.docker.internal:8000/api/history",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ client_id: $json.client_id }) }}",
+        "options": {
+          "timeout": 5000
+        }
+      }
+    },
+    {
+      "id": "total",
+      "name": "Total deleted",
+      "type": "n8n-nodes-base.summarize",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "fieldsToSummarize": {
+          "values": [
+            {
+              "aggregation": "sum",
+              "field": "deleted"
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Clients to clean",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clients to clean": {
+      "main": [
+        [
+          {
+            "node": "Delete history",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete history": {
+      "main": [
+        [
+          {
+            "node": "Total deleted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Moscow"
+  }
+}

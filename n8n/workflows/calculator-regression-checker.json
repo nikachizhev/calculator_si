@@ -1,0 +1,208 @@
+{
+  "name": "Calculator: regression checker",
+  "nodes": [
+    {
+      "id": "schedule",
+      "name": "Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cases",
+      "name": "Test cases",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Known inputs and expected outputs. expected: a number, or 'error' when the API must reject the input.\nconst cases = [\n  ['2 + 3 * 4', 14],\n  ['3 ^ 4', 81],\n  ['17 % 5', 2],\n  ['(2.5 + 1.5) / 2', 2],\n  ['sqrt(81)', 9],\n  ['log(1000)', 3],\n  ['sin(pi / 2)', 1],\n  ['factorial(6)', 720],\n  ['degrees(pi)', 180],\n  ['(12 + 22*7) / (33 + (12*3 - 8)) * 3', 8.163934426229508],\n  ['1 / 0', 'error'],\n  ['sqrt(-1)', 'error'],\n  [\"__import__('os')\", 'error'],\n];\nreturn cases.map(([expression, expected]) => ({ json: { expression, expected } }));\n"
+      }
+    },
+    {
+      "id": "calc",
+      "name": "Calculate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/calculate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ expression: $json.expression, client_id: 'n8n-regression' }) }}",
+        "options": {
+          "timeout": 5000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "compare",
+      "name": "Compare with expected",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const TOLERANCE = 1e-9;\nconst checks = $input.all().map((item, i) => {\n  const { expression, expected } = $('Test cases').itemMatching(i).json;\n  const { statusCode, body } = item.json;\n  const got = statusCode === 200 ? body.result\n    : statusCode === 400 && body?.error ? 'error'\n    : `HTTP ${statusCode ?? 'no response'}`;\n  const passed = expected === 'error'\n    ? got === 'error'\n    : typeof got === 'number' && Math.abs(got - expected) <= TOLERANCE * Math.max(1, Math.abs(expected));\n  return { expression, expected, got, passed };\n});\nconst failures = checks.filter((check) => !check.passed);\nreturn [{ json: { total: checks.length, passed: checks.length - failures.length, failed: failures.length, failures } }];\n"
+      }
+    },
+    {
+      "id": "passed",
+      "name": "All passed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "passed-cond",
+              "leftValue": "={{ $json.failed === 0 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ok",
+      "name": "All passed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        -100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "fail",
+      "name": "Report regression",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        100
+      ],
+      "parameters": {
+        "errorType": "errorMessage",
+        "errorMessage": "={{ 'Regression: ' + $json.failed + '/' + $json.total + ' cases failed: ' + $json.failures.map(f => f.expression + ' expected ' + f.expected + ', got ' + f.got).join('; ') }}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule": {
+      "main": [
+        [
+          {
+            "node": "Test cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test cases": {
+      "main": [
+        [
+          {
+            "node": "Calculate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate": {
+      "main": [
+        [
+          {
+            "node": "Compare with expected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compare with expected": {
+      "main": [
+        [
+          {
+            "node": "All passed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All passed?": {
+      "main": [
+        [
+          {
+            "node": "All passed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Report regression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Moscow"
+  }
+}
